@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      # The browser port of the analysis is tested under Node, so the two
+      # implementations cannot drift apart unnoticed.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      # The crash table is 50 MB and is never downloaded in CI: every test
+      # builds its own synthetic city with known ground truth, so the suite is
+      # fully offline.
+      - name: Test
+        run: pytest -q
+
+      - name: Check the interface stays self-contained
+        run: |
+          python - <<'PY'
+          import re
+          from pathlib import Path
+          page = Path("src/redrawn/ui/index.html").read_text()
+          banned = [r'src\s*=\s*["\']https?://', r'href\s*=\s*["\']https?://',
+                    r"@import", r"//cdn\.", r"fonts\.googleapis"]
+          found = [b for b in banned if re.search(b, page)]
+          assert not found, f"the page must stay self-contained, found: {found}"
+          assert page.count("<script src=") == 1 and 'src="maup.js"' in page
+          print(f"ok: {len(page):,} bytes, no external assets")
+          PY
