@@ -1,0 +1,477 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>redrawn — does the map change the answer?</title>
+<style>
+  :root {
+    --surface: #fcfcfb;
+    --panel: #ffffff;
+    --ink: #14140f;
+    --ink2: #52514e;
+    --muted: #898781;
+    --line: #e4e3dc;
+    --blue: #2a78d6;
+    --orange: #eb6834;
+    --aqua: #1baf7a;
+    --shadow: 0 1px 2px rgba(20,20,15,.05), 0 8px 24px rgba(20,20,15,.06);
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --surface: #14140f; --panel: #1c1c17; --ink: #f3f2ec; --ink2: #b8b6ad;
+      --muted: #8a887f; --line: #2e2e26;
+      --blue: #6ea8f0; --orange: #ff8a5c; --aqua: #3fd39c;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--surface); color: var(--ink);
+    font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 34px 22px 70px; }
+
+  header { margin-bottom: 26px; }
+  h1 {
+    margin: 0 0 6px; font-size: 30px; letter-spacing: -.022em; font-weight: 660;
+  }
+  h1 span { color: var(--muted); font-weight: 400; }
+  .lede { margin: 0; max-width: 74ch; color: var(--ink2); font-size: 15.5px; }
+  .lede b { color: var(--ink); font-weight: 620; }
+
+  .layout { display: grid; grid-template-columns: minmax(0,1.32fr) minmax(0,1fr); gap: 20px; }
+  @media (max-width: 940px) { .layout { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    padding: 16px 18px; box-shadow: var(--shadow);
+  }
+  .card h2 {
+    margin: 0 0 12px; font-size: 11.5px; font-weight: 660; letter-spacing: .075em;
+    text-transform: uppercase; color: var(--muted);
+  }
+
+  .maps { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+  button.chip {
+    font: inherit; font-size: 13px; padding: 6px 11px; border-radius: 999px; cursor: pointer;
+    border: 1px solid var(--line); background: transparent; color: var(--ink2);
+    transition: background .12s, color .12s, border-color .12s;
+  }
+  button.chip:hover { border-color: var(--blue); color: var(--ink); }
+  button.chip[aria-pressed="true"] {
+    background: var(--blue); border-color: var(--blue); color: #fff; font-weight: 560;
+  }
+  button.chip .k { opacity: .62; font-variant-numeric: tabular-nums; margin-left: 4px; }
+
+  #map { width: 100%; height: auto; display: block; }
+  #map path { vector-effect: none; }
+  #map path.hi { stroke: var(--ink) !important; }
+
+  .readout { display: flex; align-items: baseline; gap: 12px; margin-bottom: 2px; }
+  .rval {
+    font: 640 44px/1 var(--mono); letter-spacing: -.02em; font-variant-numeric: tabular-nums;
+  }
+  .rlab { color: var(--muted); font-size: 13px; }
+  .sub { color: var(--ink2); font-size: 13px; margin: 4px 0 0; }
+
+  .dial { margin: 16px 0 6px; }
+  .dial svg { width: 100%; height: 62px; display: block; }
+
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; margin-top: 4px; }
+  .stat { border-top: 1px solid var(--line); padding-top: 8px; }
+  .stat .v { font: 620 19px/1.2 var(--mono); font-variant-numeric: tabular-nums; }
+  .stat .l { font-size: 11.5px; color: var(--muted); margin-top: 3px; }
+
+  .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  button.solid {
+    font: inherit; font-size: 13.5px; font-weight: 560; padding: 8px 14px; border-radius: 8px;
+    cursor: pointer; border: 1px solid var(--blue); background: var(--blue); color: #fff;
+  }
+  button.solid:hover { filter: brightness(1.07); }
+  button.ghost {
+    font: inherit; font-size: 13px; padding: 8px 12px; border-radius: 8px; cursor: pointer;
+    border: 1px solid var(--line); background: transparent; color: var(--ink2);
+  }
+  button.ghost:hover { border-color: var(--muted); color: var(--ink); }
+  label.slider { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink2); }
+  input[type=range] { accent-color: var(--blue); width: 128px; }
+  select {
+    font: inherit; font-size: 13px; padding: 6px 8px; border-radius: 7px;
+    border: 1px solid var(--line); background: var(--panel); color: var(--ink);
+  }
+  .kval { font: 600 13px var(--mono); font-variant-numeric: tabular-nums; min-width: 30px; }
+
+  #strip { width: 100%; height: 96px; display: block; margin-top: 4px; }
+  #scatter { width: 100%; height: 250px; display: block; }
+
+  .foot { margin-top: 26px; color: var(--muted); font-size: 12.5px; max-width: 88ch; }
+  .foot a { color: var(--blue); }
+  .tag {
+    display: inline-block; font-size: 11px; padding: 2px 7px; border-radius: 999px;
+    border: 1px solid var(--line); color: var(--muted); margin-left: 6px;
+  }
+  .tag.ok { color: var(--aqua); border-color: color-mix(in srgb, var(--aqua) 40%, transparent); }
+  #loading { padding: 40px 0; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>redrawn <span>— does the map change the answer?</span></h1>
+    <p class="lede">
+      Every number below comes from the same <b id="ncrash">…</b> New York City crashes.
+      Nothing is added, removed or reweighted. The only thing that changes is
+      <b>where the boundaries are drawn</b> — and the correlation an analyst would
+      report moves from near zero to almost one.
+    </p>
+  </header>
+
+  <div id="loading">Loading the city…</div>
+
+  <div class="layout" id="app" hidden>
+    <div>
+      <div class="card">
+        <h2>The map</h2>
+        <div class="maps" id="maps"></div>
+        <svg id="map" preserveAspectRatio="xMidYMid meet" role="img"
+             aria-label="Choropleth of New York City coloured by zone injury rate"></svg>
+        <p class="sub" id="maphint">Shaded by each zone's injury rate. Hover a zone for its numbers.</p>
+      </div>
+
+    </div>
+
+    <div>
+      <div class="card">
+        <h2>What this map reports</h2>
+        <div class="readout">
+          <span class="rval" id="r">—</span>
+          <span class="rlab" id="rlab">correlation across zones</span>
+        </div>
+        <p class="sub" id="rdesc"></p>
+        <div class="dial"><svg id="dial" viewBox="0 0 100 22" preserveAspectRatio="none"></svg></div>
+        <div class="grid2">
+          <div class="stat"><div class="v" id="kzones">—</div><div class="l">zones</div></div>
+          <div class="stat"><div class="v" id="rw">—</div><div class="l">weighted by crashes</div></div>
+          <div class="stat"><div class="v" id="pointr">—</div><div class="l">between individual crashes</div></div>
+          <div class="stat"><div class="v" id="contig">—</div><div class="l">every zone connected</div></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <h2>Zone rates <span id="pairlab" class="tag"></span></h2>
+        <div class="controls" style="margin-bottom:10px">
+          <select id="pair"></select>
+        </div>
+        <svg id="scatter" role="img" aria-label="Scatter of zone-level rates"></svg>
+        <p class="sub">One dot per zone, sized by crash count.</p>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <h2>Draw your own</h2>
+        <div class="controls">
+          <button class="solid" id="draw">Draw a new map</button>
+          <label class="slider">zones
+            <input type="range" id="k" min="5" max="400" value="71">
+            <span class="kval" id="kval">71</span>
+          </label>
+          <select id="family">
+            <option value="merge">balanced (merge)</option>
+            <option value="grow">ragged (region grow)</option>
+          </select>
+          <button class="ghost" id="clear">Clear</button>
+        </div>
+        <svg id="strip" role="img" aria-label="Correlations from every map drawn so far"></svg>
+        <p class="sub" id="striphint">
+          Each tick is one map you have drawn. Keep pressing — the answer wanders.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <p class="foot">
+    Crashes: NYPD Motor Vehicle Collisions, <span id="years">…</span>, via NYC Open Data.
+    Boundaries: NYC Department of City Planning. Correlations are recomputed in your
+    browser from the same per-tract counts the analysis uses — see
+    <span class="mono">maup.js</span>.
+  </p>
+</div>
+
+<script src="maup.js"></script>
+<script>
+(function () {
+  "use strict";
+  var D = null, paths = [], nodes = [], current = null, currentKey = "cdta";
+  var drawn = [], pairKey = "speeding", seedCounter = 1;
+
+  var $ = function (id) { return document.getElementById(id); };
+  var fmt = function (v, d) { return (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(d === undefined ? 3 : d); };
+
+  /* Sequential ramp matching the README figures. */
+  var RAMP = [[238,243,250],[157,192,232],[42,120,214],[18,53,94]];
+  function ramp(t) {
+    t = Math.max(0, Math.min(1, t)) * (RAMP.length - 1);
+    var i = Math.min(RAMP.length - 2, Math.floor(t)), f = t - i;
+    var a = RAMP[i], b = RAMP[i + 1];
+    return "rgb(" + Math.round(a[0] + (b[0] - a[0]) * f) + "," +
+                    Math.round(a[1] + (b[1] - a[1]) * f) + "," +
+                    Math.round(a[2] + (b[2] - a[2]) * f) + ")";
+  }
+
+  function counts() {
+    var p = D.meta.pairs[pairKey];
+    return { x: D.counts[p.x], y: D.counts[p.y], xn: p.x, yn: p.y };
+  }
+
+  function buildMap() {
+    var svg = $("map");
+    svg.setAttribute("viewBox", D.meta.viewBox.join(" "));
+    var frag = document.createDocumentFragment();
+    for (var i = 0; i < D.paths.length; i++) {
+      var el = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      el.setAttribute("d", D.paths[i]);
+      el.dataset.i = i;
+      frag.appendChild(el);
+      nodes.push(el);
+    }
+    svg.appendChild(frag);
+    // Stroke width is in user units; the viewBox is ~0.47 wide, so keep it tiny.
+    var scale = D.meta.viewBox[2] / 900;
+    var style = document.createElementNS("http://www.w3.org/2000/svg", "style");
+    style.textContent = "#map path{stroke-width:" + (scale * 0.35) + "}" +
+                        "#map path.hi{stroke-width:" + (scale * 2.2) + "}";
+    svg.appendChild(style);
+
+    svg.addEventListener("mousemove", function (e) {
+      var t = e.target;
+      if (t.tagName !== "path") return;
+      hover(+t.dataset.i);
+    });
+    svg.addEventListener("mouseleave", function () {
+      $("maphint").textContent = "Shaded by each zone's injury rate. Hover a zone for its numbers.";
+      nodes.forEach(function (nd) { nd.classList.remove("hi"); });
+    });
+  }
+
+  function hover(i) {
+    var z = current[i], c = counts();
+    var zn = 0, zx = 0, zy = 0, members = 0;
+    for (var j = 0; j < current.length; j++) {
+      if (current[j] === z) { zn += D.n[j]; zx += c.x[j]; zy += c.y[j]; members++; }
+    }
+    nodes.forEach(function (nd, j) { nd.classList.toggle("hi", current[j] === z); });
+    $("maphint").innerHTML = "<b>Zone " + z + "</b> · " + members + " tracts · " +
+      zn.toLocaleString() + " crashes · " + c.yn + " " + (100 * zy / zn).toFixed(1) + "% · " +
+      c.xn + " " + (100 * zx / zn).toFixed(2) + "%";
+  }
+
+  function paint() {
+    var c = counts();
+    var z = MAUP.zoneRates(current, D.n, c.x, c.y);
+    var lo = 0.15, hi = 0.40;
+    var k = 0;
+    for (var i = 0; i < current.length; i++) if (current[i] + 1 > k) k = current[i] + 1;
+    var zn = new Float64Array(k), zy = new Float64Array(k);
+    for (i = 0; i < current.length; i++) { zn[current[i]] += D.n[i]; zy[current[i]] += c.y[i]; }
+    var colour = new Array(k);
+    for (i = 0; i < k; i++) colour[i] = zn[i] > 0 ? ramp((zy[i] / zn[i] - lo) / (hi - lo)) : "transparent";
+    for (i = 0; i < nodes.length; i++) {
+      var col = colour[current[i]];
+      nodes[i].setAttribute("fill", col);
+      // Stroke each tract in its own fill colour. That closes the hairline
+      // seams between tracts without drawing a grid over the map, so tracts
+      // sharing a zone merge into one solid block and the zones are what the
+      // eye actually sees.
+      nodes[i].setAttribute("stroke", col);
+    }
+    return z;
+  }
+
+  function score(label) {
+    var c = counts();
+    var z = paint();
+    var r = MAUP.pearson(z.x, z.y);
+    var rw = MAUP.weightedPearson(z.x, z.y, z.n);
+    $("r").textContent = fmt(r);
+    $("r").style.color = r >= 0 ? "var(--blue)" : "var(--orange)";
+    $("kzones").textContent = z.k;
+    $("rw").textContent = fmt(rw);
+    $("pointr").textContent = fmt(D.meta.pointR[pairKey]);
+    var ok = MAUP.isContiguous(current, D.adjStart, D.adj);
+    $("contig").textContent = ok ? "yes" : "no";
+    $("rdesc").textContent = label;
+    dial(r);
+    scatter(z);
+    return r;
+  }
+
+  function dial(r) {
+    var svg = $("dial"), p = D.meta.pointR[pairKey];
+    var toX = function (v) { return (v + 1) / 2 * 100; };
+    svg.innerHTML =
+      '<rect x="0" y="8" width="100" height="6" rx="3" fill="var(--line)"/>' +
+      '<rect x="' + Math.min(toX(0), toX(r)) + '" y="8" width="' + Math.abs(toX(r) - toX(0)) +
+        '" height="6" rx="3" fill="' + (r >= 0 ? "var(--blue)" : "var(--orange)") + '"/>' +
+      '<line x1="' + toX(0) + '" y1="4" x2="' + toX(0) + '" y2="18" stroke="var(--muted)" stroke-width=".5"/>' +
+      '<line x1="' + toX(p) + '" y1="3" x2="' + toX(p) + '" y2="19" stroke="var(--aqua)" stroke-width=".9"/>' +
+      '<circle cx="' + toX(r) + '" cy="11" r="3.6" fill="var(--panel)" stroke="' +
+        (r >= 0 ? "var(--blue)" : "var(--orange)") + '" stroke-width="1.6"/>' +
+      '<text x="0" y="21.5" font-size="4" fill="var(--muted)">-1</text>' +
+      '<text x="97" y="21.5" font-size="4" fill="var(--muted)">+1</text>' +
+      '<text x="' + toX(p) + '" y="3.4" font-size="4" fill="var(--aqua)" text-anchor="middle">crash level</text>';
+  }
+
+  function scatter(z) {
+    var svg = $("scatter"), W = svg.clientWidth || 380, H = 250;
+    svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+    var m = { l: 44, r: 10, t: 10, b: 32 };
+    var xs = z.x, ys = z.y;
+    var xmax = Math.max.apply(null, xs) * 1.06 || 1;
+    var ymin = Math.min.apply(null, ys) * 0.94, ymax = Math.max.apply(null, ys) * 1.04 || 1;
+    var nmax = Math.max.apply(null, z.n);
+    var X = function (v) { return m.l + v / xmax * (W - m.l - m.r); };
+    var Y = function (v) { return H - m.b - (v - ymin) / (ymax - ymin || 1) * (H - m.t - m.b); };
+    var c = counts();
+    var out = '<line x1="' + m.l + '" y1="' + (H - m.b) + '" x2="' + (W - m.r) + '" y2="' + (H - m.b) +
+              '" stroke="var(--line)"/><line x1="' + m.l + '" y1="' + m.t + '" x2="' + m.l + '" y2="' +
+              (H - m.b) + '" stroke="var(--line)"/>';
+    for (var i = 0; i < xs.length; i++) {
+      var rad = 2 + 5 * Math.sqrt(z.n[i] / nmax);
+      out += '<circle cx="' + X(xs[i]).toFixed(1) + '" cy="' + Y(ys[i]).toFixed(1) + '" r="' +
+             rad.toFixed(1) + '" fill="var(--blue)" fill-opacity=".42" stroke="var(--blue)" stroke-opacity=".7" stroke-width=".7"/>';
+    }
+    out += '<text x="' + ((W + m.l) / 2) + '" y="' + (H - 6) + '" font-size="11" fill="var(--muted)" text-anchor="middle">' +
+           c.xn + ' rate</text>';
+    out += '<text transform="translate(12,' + ((H - m.b + m.t) / 2) + ') rotate(-90)" font-size="11" fill="var(--muted)" text-anchor="middle">' +
+           c.yn + ' rate</text>';
+    out += '<text x="' + m.l + '" y="' + (H - m.b + 14) + '" font-size="10" fill="var(--muted)">0</text>';
+    out += '<text x="' + (W - m.r) + '" y="' + (H - m.b + 14) + '" font-size="10" fill="var(--muted)" text-anchor="end">' +
+           (100 * xmax).toFixed(1) + '%</text>';
+    out += '<text x="' + (m.l - 6) + '" y="' + (m.t + 8) + '" font-size="10" fill="var(--muted)" text-anchor="end">' +
+           (100 * ymax).toFixed(0) + '%</text>';
+    svg.innerHTML = out;
+  }
+
+  function strip() {
+    var svg = $("strip"), W = svg.clientWidth || 520, H = 96;
+    svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+    var m = 26;
+    var X = function (v) { return m + (v + 1) / 2 * (W - 2 * m); };
+    var out = '<line x1="' + m + '" y1="62" x2="' + (W - m) + '" y2="62" stroke="var(--line)" stroke-width="2"/>';
+    [-1, -0.5, 0, 0.5, 1].forEach(function (t) {
+      out += '<line x1="' + X(t) + '" y1="58" x2="' + X(t) + '" y2="66" stroke="var(--muted)" stroke-width=".8"/>';
+      out += '<text x="' + X(t) + '" y="79" font-size="10" fill="var(--muted)" text-anchor="middle">' +
+             (t > 0 ? "+" : "") + t + '</text>';
+    });
+    drawn.forEach(function (d) {
+      out += '<line x1="' + X(d.r) + '" y1="40" x2="' + X(d.r) + '" y2="60" stroke="var(--blue)" stroke-opacity=".5" stroke-width="1.4"/>';
+    });
+    Object.keys(D.partitions).forEach(function (key) {
+      var p = D.partitions[key];
+      if (!p.official) return;
+      var r = MAUP.partitionCorrelation(p.labels, D.n, counts().x, counts().y);
+      out += '<line x1="' + X(r) + '" y1="18" x2="' + X(r) + '" y2="62" stroke="var(--orange)" stroke-width="1.6"/>';
+      out += '<text x="' + X(r) + '" y="14" font-size="9.5" fill="var(--orange)" text-anchor="middle">' +
+             (p.k >= 1000 ? "tracts" : p.k) + '</text>';
+    });
+    var pr = D.meta.pointR[pairKey];
+    out += '<line x1="' + X(pr) + '" y1="30" x2="' + X(pr) + '" y2="70" stroke="var(--aqua)" stroke-width="2"/>';
+    svg.innerHTML = out;
+  }
+
+  function select(key) {
+    currentKey = key;
+    var p = D.partitions[key];
+    current = Int32Array.from(p.labels);
+    document.querySelectorAll("#maps .chip").forEach(function (b) {
+      b.setAttribute("aria-pressed", String(b.dataset.key === key));
+    });
+    score(p.official ? "An official map of New York City." : "A map generated by this study.");
+    strip();
+  }
+
+  function drawNew() {
+    var k = +$("k").value;
+    var rand = MAUP.mulberry32(0x9e37 + (seedCounter++) * 2654435761 % 2147483647);
+    var t0 = performance.now();
+    current = $("family").value === "merge"
+      ? MAUP.mergeToK(D.adjStart, D.adj, D.n, k, rand)
+      : MAUP.growToK(D.adjStart, D.adj, k, rand);
+    document.querySelectorAll("#maps .chip").forEach(function (b) {
+      b.setAttribute("aria-pressed", "false");
+    });
+    var r = score("A map this page just invented — contiguous, " + k + " zones, " +
+                  "drawn without looking at the crash data.");
+    drawn.push({ r: r, k: k });
+    $("striphint").innerHTML = drawn.length === 1
+      ? "One map drawn. Keep pressing."
+      : drawn.length + " maps drawn · range " + fmt(Math.min.apply(null, drawn.map(function (d) { return d.r; }))) +
+        " to " + fmt(Math.max.apply(null, drawn.map(function (d) { return d.r; }))) +
+        " · " + (performance.now() - t0).toFixed(0) + " ms to build the last one";
+    strip();
+  }
+
+  fetch("data.json").then(function (res) { return res.json(); }).then(function (data) {
+    D = data;
+    D.n = Float64Array.from(D.n);
+    Object.keys(D.counts).forEach(function (key) { D.counts[key] = Float64Array.from(D.counts[key]); });
+    D.adjStart = Int32Array.from(D.adjStart);
+    D.adj = Int32Array.from(D.adj);
+
+    $("ncrash").textContent = D.meta.crashes.toLocaleString();
+    $("years").textContent = D.meta.years[0] + "–" + D.meta.years[1];
+
+    var maps = $("maps");
+    Object.keys(D.partitions).forEach(function (key) {
+      var p = D.partitions[key];
+      var b = document.createElement("button");
+      b.className = "chip";
+      b.dataset.key = key;
+      b.innerHTML = p.name.replace(/ \(K=\d+\)/, "") + '<span class="k">' + p.k + "</span>";
+      b.setAttribute("aria-pressed", "false");
+      b.onclick = function () { select(key); };
+      maps.appendChild(b);
+    });
+
+    var sel = $("pair");
+    Object.keys(D.meta.pairs).forEach(function (key) {
+      var o = document.createElement("option");
+      o.value = key;
+      o.textContent = D.meta.pairs[key].x + " vs " + D.meta.pairs[key].y;
+      sel.appendChild(o);
+    });
+    sel.value = pairKey;
+    sel.onchange = function () {
+      pairKey = sel.value;
+      $("pairlab").textContent = D.meta.pairs[pairKey].x;
+      drawn = [];
+      score($("rdesc").textContent);
+      strip();
+    };
+    $("pairlab").textContent = D.meta.pairs[pairKey].x;
+
+    $("k").oninput = function () { $("kval").textContent = $("k").value; };
+    $("draw").onclick = drawNew;
+    $("clear").onclick = function () {
+      drawn = [];
+      $("striphint").textContent = "Each tick is one map you have drawn. Keep pressing — the answer wanders.";
+      strip();
+    };
+
+    $("loading").hidden = true;
+    $("app").hidden = false;
+    buildMap();
+    // ?map=<key> opens on a chosen map, which is how the README screenshots
+    // land on the official districts and the gerrymandered one.
+    var wanted = new URLSearchParams(location.search).get("map");
+    select(D.partitions[wanted] ? wanted : "cdta");
+    window.addEventListener("resize", function () { score($("rdesc").textContent); strip(); });
+  }).catch(function (err) {
+    $("loading").textContent = "Could not load data.json — run `make web` to export it. (" + err + ")";
+  });
+})();
+</script>
+</body>
+</html>
