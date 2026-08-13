@@ -1,0 +1,58 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "redrawn"
+version = "0.1.0"
+description = "How much of a spatial finding is the finding, and how much is the map?"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Usmar Haider" }]
+keywords = [
+    "geospatial",
+    "modifiable areal unit problem",
+    "ecological fallacy",
+    "spatial autocorrelation",
+    "redistricting",
+    "new york city",
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Topic :: Scientific/Engineering :: GIS",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+]
+dependencies = [
+    "numpy>=1.26",
+    "pandas>=2.0",
+    "pyarrow>=14",
+    "scipy>=1.11",
+    "matplotlib>=3.8",
+    "requests>=2.31",
+    "fastapi>=0.110",
+    "uvicorn>=0.27",
+    "pydantic>=2.5",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "httpx>=0.27"]
+
+[project.urls]
+Homepage = "https://github.com/UsmarHaider/redrawn"
+Demo = "https://usmar-redrawn.static.hf.space/"
+
+[project.scripts]
+redrawn = "redrawn.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+redrawn = ["ui/*.html", "ui/*.js"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+filterwarnings = ["error::DeprecationWarning:redrawn.*"]

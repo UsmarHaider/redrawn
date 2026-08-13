@@ -1,0 +1,20 @@
+# data and derived artefacts -- all reproducible with `make all`
+data/
+artifacts/
+reports/
+src/redrawn/ui/data.json
+
+# python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+build/
+dist/
+
+# secrets
+.env
+
+# os
+.DS_Store
